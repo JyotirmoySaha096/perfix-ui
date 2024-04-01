@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Questionnaire from "./components/Questionnaire";
+import {
+  Box,
+  Button,
+  FormControl,
+  MenuItem,
+  Select,
+  Typography,
+  Card,
+  CardContent,
+  CircularProgress
+} from "@mui/material";
 
 const sampleStartQuestionnaireResponse = (params) => {
   if (params === "mysql") return { id: "426" };
@@ -10,7 +21,6 @@ const sampleStartQuestionnaireResponse = (params) => {
 };
 
 const sampleFetchQuestionsResponse = (params) => {
-  
   if (params == "426")
     return {
       questions: {
@@ -106,6 +116,7 @@ const sampleStartExperimentResponse = (params) => {
 };
 
 function App() {
+  const [loading, setLoading] = useState(false);
   const [selectedOption, setSelectedOption] = useState("redis");
   const [questionnaireId, setQuestionnaireId] = useState(null);
   const [formData, setFormData] = useState({});
@@ -114,22 +125,23 @@ function App() {
   const [experimentResults, setExperimentResults] = useState(null);
 
   const startQuestionnaire = async () => {
+    setLoading(true);
     try {
-      
       const response = await axios
         .create({ baseURL: "http://localhost:9000" })
         .post("/questionnaire?storeName=" + selectedOption);
       const newQuestionnaireId = response.data.id;
-      
+
       setQuestionnaireId(newQuestionnaireId);
     } catch (error) {
       console.error("Error:", error);
       // Handle error
       const newQuestionnaireId =
         sampleStartQuestionnaireResponse(selectedOption).id;
-      
+
       setQuestionnaireId(newQuestionnaireId);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -137,7 +149,7 @@ function App() {
     if (questionnaireId !== null) {
       // Perform actions that depend on the updated questionnaireId here.
       // You can call the fetchQuestionFields function here if needed.
-      
+
       fetchQuestionFields();
     }
   }, [questionnaireId]); // This specifies that useEffect should run when questionnaireId changes.
@@ -150,14 +162,13 @@ function App() {
         if (response.data === null) {
           setQuestionnaireComplete(true);
         } else {
-          
           const fields = response.data.questions;
           setFormData(fields);
         }
       })
       .catch((error) => {
         // Handle error
-        
+
         const fields = sampleFetchQuestionsResponse(questionnaireId).questions;
         setFormData(fields);
       });
@@ -177,21 +188,22 @@ function App() {
         JSON.stringify(toBeSendDoc)
       )
       .then(() => {
-        
         setQuestionnaireComplete(true);
       })
       .catch((error) => {
         // Handle error
-        
+
         setQuestionnaireComplete(true);
       });
   };
 
-  const startExperiment = () => {
-    axios
+  const startExperiment = async () => {
+    setLoading(true);
+    await axios
       .create({ baseURL: "http://localhost:9000" })
       .post(`/questionnaire/${questionnaireId}`)
-      .then(() => {
+      .then((response) => {
+        setExperimentResults(response.data);
         setExperimentStarted(true);
       })
       .catch((error) => {
@@ -200,63 +212,128 @@ function App() {
         setExperimentResults(response);
         setExperimentStarted(true);
       });
+    setLoading(false);
   };
 
   return (
-    <div className="App">
-      <h1>Questionnaire and Experiment</h1>
-      {!questionnaireId && (
-        <div>
-          <h2>Select an option:</h2>
-          <select
-            value={selectedOption}
-            onChange={(e) => setSelectedOption(e.target.value)}
-          >
-            <option value="redis">Redis</option>
-            <option value="mysql">MySQL</option>
-            <option value="dynamodb">DynamoDB</option>
-          </select>
-          <button onClick={startQuestionnaire}>Start Questionnaire</button>
-        </div>
-      )}
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+        backgroundColor: "#edebeb80",
+      }}
+    >
+      <Card sx={{ width: "50%", height: "95%", borderRadius: 8 }}>
+        <CardContent
+          sx={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-start",
+            alignItems: "flex-start",
+            pt: 10,
+            gap: 5,
+          }}
+        >
+          <Box>
+            <Typography variant="h5" fontWeight={"bold"}>
+              Questionnaires:
+            </Typography>
+            <hr style={{ visibility: "hidden" }} />
+            <Typography variant="body1" fontWeight={"normal"} maxWidth={"60%"}>
+              Please Select a topic for start questionnaries
+            </Typography>
+          </Box>
 
-      {questionnaireId && !questionnaireComplete && (
-        <Questionnaire
-          formData={formData}
-          setFormData={setFormData}
-          submitAnswer={submitAnswer}
-        />
-      )}
+          {!questionnaireId && (
+            <Box
+              display={"flex"}
+              flexDirection={"column"}
+              justifyContent={"flex-start"}
+              alignItems={"flex-start"}
+              width={"80%"}
+              height={"50%"}
+              gap={4}
+              pl={4}
+            >
+              <Typography variant="h5">Select an option:</Typography>
+              <FormControl sx={{ minWidth: "50%" }} disabled={loading}>
+                <Select
+                  value={selectedOption}
+                  onChange={(e) => setSelectedOption(e.target.value)}
+                >
+                  <MenuItem value="redis">Redis</MenuItem>
+                  <MenuItem value="mysql">MySQL</MenuItem>
+                  <MenuItem value="dynamodb">DynamoDB</MenuItem>
+                </Select>
+              </FormControl>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={startQuestionnaire}
+                sx={{ borderRadius: 3 }}
+                disabled={loading}
+              >
+                {loading && <CircularProgress size={24} sx={{color:"white", mr:2}} />} Start Questionnaire
+              </Button>
+            </Box>
+          )}
 
-      {questionnaireComplete && !experimentStarted && (
-        <div>
-          <button onClick={startExperiment}>Start Experiment</button>
-        </div>
-      )}
-      {experimentStarted && experimentResults && (
-        <div>
-          <p>Overall Query Time: {experimentResults.overallQueryTime}</p>
-          <p>
-            Overall Write Time Taken: {experimentResults.overallWriteTimeTaken}
-          </p>
-          <p>Number Of Calls: {experimentResults.numberOfCalls}</p>
+          {questionnaireId && !questionnaireComplete && (
+            <Questionnaire
+              formData={formData}
+              setFormData={setFormData}
+              submitAnswer={submitAnswer}
+            />
+          )}
 
-          <h3>Query Latencies:</h3>
-          {experimentResults.queryLatencies.map((item, index) => (
-            <p key={index}>
-              Percentile: {item.percentile}, Latency: {item.latency}
-            </p>
-          ))}
+          {questionnaireComplete && !experimentStarted && (
+            <Box>
+              <Button
+                variant="contained"
+                onClick={startExperiment}
+                sx={{ borderRadius: 3, }}
+                color="secondary"
+                disabled={loading}
+              >
+                {loading && <CircularProgress size={24} sx={{color:"white", mr:2}} />}  Start Experiment
+              </Button>
+            </Box>
+          )}
+          {experimentStarted && experimentResults && (
+            <Box>
+              <Typography variant="body1">
+                Overall Query Time: {experimentResults.overallQueryTime}
+              </Typography>
+              <Typography variant="body1">
+                Overall Write Time Taken:{" "}
+                {experimentResults.overallWriteTimeTaken}
+              </Typography>
+              <Typography variant="body1">
+                Number Of Calls: {experimentResults.numberOfCalls}
+              </Typography>
 
-          <h3>Write Latencies:</h3>
-          {experimentResults.writeLatencies.map((item, index) => (
-            <p key={index}>
-              Percentile: {item.percentile}, Latency: {item.latency}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
+              <Typography variant="h6">Query Latencies:</Typography>
+              {experimentResults.queryLatencies.map((item, index) => (
+                <Typography variant="body1" key={index}>
+                  Percentile: {item.percentile}, Latency: {item.latency}
+                </Typography>
+              ))}
+
+              <Typography variant="h6">Write Latencies:</Typography>
+              {experimentResults.writeLatencies.map((item, index) => (
+                <Typography variant="body1" key={index}>
+                  Percentile: {item.percentile}, Latency: {item.latency}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+    </Box>
   );
 }
 
